@@ -467,23 +467,6 @@ public:
     }
   }
 
-  template <typename Executor>
-  Executor* target()
-  {
-    return static_cast<Executor*>(target_);
-  }
-
-  template <typename Executor>
-  const Executor* target() const
-  {
-    return static_cast<Executor*>(target_);
-  }
-
-  const std::type_info& target_type() const
-  {
-    return target_fns_->target_type();
-  }
-
   struct unspecified_bool_type_t {};
   typedef void (*unspecified_bool_type)(unspecified_bool_type_t);
   static void unspecified_bool_true(unspecified_bool_type_t) {}
@@ -657,16 +640,10 @@ protected:
 
   struct target_fns
   {
-    const std::type_info& (*target_type)();
     bool (*equal)(const any_executor_base&, const any_executor_base&);
     void (*execute)(const any_executor_base&, ASIO_MOVE_ARG(function));
     void (*blocking_execute)(const any_executor_base&, function_view);
   };
-
-  static const std::type_info& target_type_void()
-  {
-    return typeid(void);
-  }
 
   static bool equal_void(const any_executor_base&, const any_executor_base&)
   {
@@ -694,7 +671,6 @@ protected:
   {
     static const target_fns fns =
     {
-      &any_executor_base::target_type_void,
       &any_executor_base::equal_void,
       &any_executor_base::execute_void,
       &any_executor_base::blocking_execute_void
@@ -703,29 +679,23 @@ protected:
   }
 
   template <typename Ex>
-  static const std::type_info& target_type_ex()
-  {
-    return typeid(Ex);
-  }
-
-  template <typename Ex>
   static bool equal_ex(const any_executor_base& ex1,
       const any_executor_base& ex2)
   {
-    return *ex1.target<Ex>() == *ex2.target<Ex>();
+    return *static_cast<Ex*>(ex1.target_) == *static_cast<Ex*>(ex2.target_);
   }
 
   template <typename Ex>
   static void execute_ex(const any_executor_base& ex,
       ASIO_MOVE_ARG(function) f)
   {
-    ex.target<Ex>()->execute(ASIO_MOVE_CAST(function)(f));
+    static_cast<Ex*>(ex.target_)->execute(ASIO_MOVE_CAST(function)(f));
   }
 
   template <typename Ex>
   static void blocking_execute_ex(const any_executor_base& ex, function_view f)
   {
-    ex.target<Ex>()->execute(f);
+    static_cast<Ex*>(ex.target_)->execute(f);
   }
 
   template <typename Ex>
@@ -736,7 +706,6 @@ protected:
   {
     static const target_fns fns =
     {
-      &any_executor_base::target_type_ex<Ex>,
       &any_executor_base::equal_ex<Ex>,
       &any_executor_base::execute_ex<Ex>,
       &any_executor_base::blocking_execute_ex<Ex>
@@ -980,8 +949,6 @@ public:
 
   using detail::any_executor_base::operator=;
   using detail::any_executor_base::execute;
-  using detail::any_executor_base::target;
-  using detail::any_executor_base::target_type;
   using detail::any_executor_base::operator unspecified_bool_type;
   using detail::any_executor_base::operator!;
 
@@ -1086,8 +1053,6 @@ public:
 #endif // defined(ASIO_HAS_MOVE)
 
   using detail::any_executor_base::execute;
-  using detail::any_executor_base::target;
-  using detail::any_executor_base::target_type;
   using detail::any_executor_base::operator unspecified_bool_type;
   using detail::any_executor_base::operator!;
 
@@ -1335,8 +1300,6 @@ struct is_executor<any_executor<SupportableProperties...> > : true_type
     ASIO_PRIVATE_ANY_EXECUTOR_MOVE_OPS \
     \
     using detail::any_executor_base::execute; \
-    using detail::any_executor_base::target; \
-    using detail::any_executor_base::target_type; \
     using detail::any_executor_base::operator unspecified_bool_type; \
     using detail::any_executor_base::operator!; \
     \
